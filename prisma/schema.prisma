@@ -1,0 +1,439 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  MANAGER
+  SALES
+  VIEW_ONLY
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  UNQUALIFIED
+  CONVERTED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum DealStatus {
+  OPEN
+  WON
+  LOST
+}
+
+enum ActivityType {
+  CALL
+  EMAIL
+  MEETING
+  WHATSAPP
+  NOTE
+  FOLLOW_UP
+  OTHER
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum ResearchCategory {
+  ORGANIZATION
+  CONTACT
+  INDUSTRY
+  MARKET
+  COMPETITOR
+  OPPORTUNITY
+}
+
+enum DuplicateEntityType {
+  ORGANIZATION
+  CONTACT
+}
+
+enum DuplicateStatus {
+  PENDING
+  MERGED
+  DISMISSED
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  memberships       WorkspaceMembership[]
+  ownedOrgs         Organization[]        @relation("OrgOwner")
+  createdOrgs       Organization[]        @relation("OrgCreator")
+  ownedContacts     Contact[]             @relation("ContactOwner")
+  createdContacts   Contact[]             @relation("ContactCreator")
+  ownedLeads        Lead[]                @relation("LeadOwner")
+  createdLeads      Lead[]                @relation("LeadCreator")
+  ownedDeals        Deal[]                @relation("DealOwner")
+  createdDeals      Deal[]                @relation("DealCreator")
+  authoredActivities Activity[]
+  assignedTasks     Task[]                @relation("TaskAssignee")
+  createdTasks      Task[]                @relation("TaskCreator")
+  authoredResearch  ResearchRecord[]
+  auditLogs         AuditLog[]
+  reviewedDuplicates DuplicateCandidate[]
+  importJobs        ImportJob[]
+}
+
+model Workspace {
+  id        String   @id @default(uuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships     WorkspaceMembership[]
+  organizations   Organization[]
+  contacts        Contact[]
+  leads           Lead[]
+  deals           Deal[]
+  pipelineStages  PipelineStage[]
+  activities      Activity[]
+  tasks           Task[]
+  researchRecords ResearchRecord[]
+  duplicates      DuplicateCandidate[]
+  auditLogs       AuditLog[]
+  importJobs      ImportJob[]
+}
+
+model WorkspaceMembership {
+  id          String   @id @default(uuid())
+  userId      String
+  workspaceId String
+  role        Role     @default(SALES)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workspaceId])
+  @@index([workspaceId])
+  @@index([userId])
+}
+
+model Organization {
+  id          String   @id @default(uuid())
+  workspaceId String
+  name        String
+  website     String?
+  industry    String?
+  country     String?
+  city        String?
+  phone       String?
+  email       String?
+  address     String?
+  description String?
+  ownerId     String?
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace       Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  owner           User?            @relation("OrgOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  creator         User             @relation("OrgCreator", fields: [createdById], references: [id])
+  contacts        Contact[]
+  leads           Lead[]
+  deals           Deal[]
+  activities      Activity[]
+  tasks           Task[]
+  researchRecords ResearchRecord[]
+
+  @@index([workspaceId, name])
+  @@index([workspaceId, industry])
+  @@index([workspaceId, createdAt])
+}
+
+model Contact {
+  id             String   @id @default(uuid())
+  workspaceId    String
+  organizationId String?
+  firstName      String
+  lastName       String
+  jobTitle       String?
+  email          String?
+  phone          String?
+  whatsApp       String?
+  country        String?
+  city           String?
+  linkedInUrl    String?
+  notes          String?
+  ownerId        String?
+  createdById    String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  workspace       Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  organization    Organization?    @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  owner           User?            @relation("ContactOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  creator         User             @relation("ContactCreator", fields: [createdById], references: [id])
+  leads           Lead[]
+  deals           Deal[]
+  activities      Activity[]
+  tasks           Task[]
+  researchRecords ResearchRecord[]
+
+  @@index([workspaceId, email])
+  @@index([workspaceId, phone])
+  @@index([workspaceId, organizationId])
+}
+
+model Lead {
+  id                String     @id @default(uuid())
+  workspaceId       String
+  title             String
+  contactId         String?
+  organizationId    String?
+  source            String     @default("Inbound")
+  status            LeadStatus @default(NEW)
+  priority          Priority   @default(MEDIUM)
+  estimatedValue    Float      @default(0.0)
+  expectedCloseDate DateTime?
+  nextFollowUp      DateTime?
+  description       String?
+  ownerId           String?
+  createdById       String
+  convertedDealId   String?    @unique
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  workspace    Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact      Contact?      @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  owner        User?         @relation("LeadOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  creator      User          @relation("LeadCreator", fields: [createdById], references: [id])
+  convertedDeal Deal?        @relation("LeadToDeal", fields: [convertedDealId], references: [id])
+  activities   Activity[]
+  tasks        Task[]
+
+  @@index([workspaceId, status])
+  @@index([workspaceId, ownerId])
+  @@index([workspaceId, createdAt])
+}
+
+model PipelineStage {
+  id           String   @id @default(uuid())
+  workspaceId  String
+  name         String
+  displayOrder Int
+  color        String   @default("#3B82F6")
+  isWon        Boolean  @default(false)
+  isLost       Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  deals     Deal[]
+
+  @@unique([workspaceId, displayOrder])
+  @@unique([workspaceId, name])
+  @@index([workspaceId])
+}
+
+model Deal {
+  id                String     @id @default(uuid())
+  workspaceId       String
+  title             String
+  stageId           String
+  organizationId    String?
+  contactId         String?
+  leadId            String?
+  value             Float      @default(0.0)
+  currency          String     @default("USD")
+  probability       Int        @default(50)
+  expectedCloseDate DateTime?
+  status            DealStatus @default(OPEN)
+  description       String?
+  ownerId           String?
+  createdById       String
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  workspace    Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  stage        PipelineStage @relation(fields: [stageId], references: [id], onDelete: Restrict)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  contact      Contact?      @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  owner        User?         @relation("DealOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  creator      User          @relation("DealCreator", fields: [createdById], references: [id])
+  convertedFromLead Lead?    @relation("LeadToDeal")
+  activities   Activity[]
+  tasks        Task[]
+
+  @@index([workspaceId, stageId])
+  @@index([workspaceId, status])
+  @@index([workspaceId, ownerId])
+  @@index([workspaceId, createdAt])
+}
+
+model Activity {
+  id             String       @id @default(uuid())
+  workspaceId    String
+  type           ActivityType @default(NOTE)
+  subject        String
+  description    String?
+  organizationId String?
+  contactId      String?
+  leadId         String?
+  dealId         String?
+  outcome        String?
+  authorId       String
+  date           DateTime     @default(now())
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  workspace    Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  author       User          @relation(fields: [authorId], references: [id])
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contact      Contact?      @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  lead         Lead?         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  deal         Deal?         @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, date])
+  @@index([workspaceId, authorId])
+}
+
+model Task {
+  id             String     @id @default(uuid())
+  workspaceId    String
+  title          String
+  description    String?
+  assignedUserId String?
+  createdById    String
+  organizationId String?
+  contactId      String?
+  leadId         String?
+  dealId         String?
+  dueDate        DateTime?
+  priority       Priority   @default(MEDIUM)
+  status         TaskStatus @default(PENDING)
+  completedAt    DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  workspace    Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  assignedUser User?         @relation("TaskAssignee", fields: [assignedUserId], references: [id], onDelete: SetNull)
+  creator      User          @relation("TaskCreator", fields: [createdById], references: [id])
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contact      Contact?      @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  lead         Lead?         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  deal         Deal?         @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, status])
+  @@index([workspaceId, assignedUserId])
+  @@index([workspaceId, dueDate])
+}
+
+model ResearchRecord {
+  id             String           @id @default(uuid())
+  workspaceId    String
+  title          String
+  category       ResearchCategory @default(MARKET)
+  description    String
+  sourceUrl      String?
+  organizationId String?
+  contactId      String?
+  authorId       String
+  date           DateTime         @default(now())
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  workspace    Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  author       User          @relation(fields: [authorId], references: [id])
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contact      Contact?      @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, category])
+}
+
+model DuplicateCandidate {
+  id                String              @id @default(uuid())
+  workspaceId       String
+  entityType        DuplicateEntityType
+  primaryRecordId   String
+  duplicateRecordId String
+  matchReason       String
+  confidenceScore   Int
+  status            DuplicateStatus     @default(PENDING)
+  reviewedById      String?
+  reviewedAt        DateTime?
+  createdAt         DateTime            @default(now())
+
+  workspace  Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  reviewedBy User?     @relation(fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, status])
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  workspaceId String
+  userId      String?
+  action      String
+  entityType  String
+  entityId    String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, createdAt])
+  @@index([workspaceId, action])
+  @@index([workspaceId, entityType])
+}
+
+model ImportJob {
+  id          String   @id @default(uuid())
+  workspaceId String
+  entityType  String
+  status      String   @default("COMPLETED")
+  totalRows   Int      @default(0)
+  successRows Int      @default(0)
+  failedRows  Int      @default(0)
+  createdById String
+  createdAt   DateTime @default(now())
+
+  workspace Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  creator   User             @relation(fields: [createdById], references: [id])
+  errors    ImportRowError[]
+
+  @@index([workspaceId, createdAt])
+}
+
+model ImportRowError {
+  id           String    @id @default(uuid())
+  importJobId  String
+  rowNumber    Int
+  rawContent   Json?
+  errorMessage String
+  createdAt    DateTime  @default(now())
+
+  job ImportJob @relation(fields: [importJobId], references: [id], onDelete: Cascade)
+
+  @@index([importJobId])
+}
