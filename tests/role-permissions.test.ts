@@ -26,9 +26,7 @@ describe("Strict Role-Based Access Control (RBAC)", () => {
     userAdmin = await prisma.user.findUniqueOrThrow({ where: { email: "admin@vendre.com" } });
     userOwner = await prisma.user.findUniqueOrThrow({ where: { email: "owner@vendre.com" } });
 
-    testLead = await prisma.lead.findFirstOrThrow({ where: { workspaceId: wsVendre.id, status: "NEW" } }).catch(() =>
-      prisma.lead.findFirstOrThrow({ where: { workspaceId: wsVendre.id } })
-    );
+    testLead = await prisma.lead.findFirstOrThrow({ where: { workspaceId: wsVendre.id } });
     testStage = await prisma.pipelineStage.findFirstOrThrow({ where: { workspaceId: wsVendre.id } });
   });
 

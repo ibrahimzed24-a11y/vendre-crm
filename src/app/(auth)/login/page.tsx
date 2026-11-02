@@ -37,11 +37,6 @@ export default function LoginPage() {
     }
   }
 
-  function fillDemo(userEmail: string) {
-    setEmail(userEmail);
-    setPassword("Vendre2025!");
-  }
-
   return (
     <div className="min-h-screen bg-slate-900 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
@@ -111,52 +106,73 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          {/* Quick Demo Access Switcher */}
-          <div className="mt-6 pt-6 border-t border-slate-200">
-            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider text-center mb-3">
-              One-Click Demo Credentials
-            </p>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <button
-                type="button"
-                onClick={() => fillDemo("owner@vendre.com")}
-                className="p-2 rounded-lg border border-slate-200 hover:border-blue-500 hover:bg-blue-50 text-left transition-colors"
-              >
-                <div className="font-bold text-slate-800">Owner</div>
-                <div className="text-[10px] text-slate-500">owner@vendre.com</div>
-              </button>
-              <button
-                type="button"
-                onClick={() => fillDemo("admin@vendre.com")}
-                className="p-2 rounded-lg border border-slate-200 hover:border-blue-500 hover:bg-blue-50 text-left transition-colors"
-              >
-                <div className="font-bold text-slate-800">Admin</div>
-                <div className="text-[10px] text-slate-500">admin@vendre.com</div>
-              </button>
-              <button
-                type="button"
-                onClick={() => fillDemo("sales@vendre.com")}
-                className="p-2 rounded-lg border border-slate-200 hover:border-blue-500 hover:bg-blue-50 text-left transition-colors"
-              >
-                <div className="font-bold text-slate-800">Sales Rep</div>
-                <div className="text-[10px] text-slate-500">sales@vendre.com</div>
-              </button>
-              <button
-                type="button"
-                onClick={() => fillDemo("agency.lead@vendre.com")}
-                className="p-2 rounded-lg border border-slate-200 hover:border-blue-500 hover:bg-blue-50 text-left transition-colors"
-              >
-                <div className="font-bold text-slate-800">Agency Lead</div>
-                <div className="text-[10px] text-slate-500">agency.lead@...</div>
-              </button>
-            </div>
-            <div className="mt-3 text-center">
-              <span className="text-[10px] text-slate-400">
-                Default password: <code className="bg-slate-100 px-1 py-0.5 rounded">Vendre2025!</code>
-              </span>
-            </div>
-          </div>
+          {/* Quick Demo Access Switcher — Excluded from production output */}
+          {process.env.NODE_ENV === "development" ? (
+            <DevDemoCredentials
+              onFill={(demoEmail, demoPassword) => {
+                setEmail(demoEmail);
+                setPassword(demoPassword);
+              }}
+            />
+          ) : null}
         </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Demo credentials helper rendered exclusively in development environments.
+ * Stripped from production output and bundles.
+ */
+function DevDemoCredentials({
+  onFill,
+}: {
+  onFill: (email: string, password: string) => void;
+}) {
+  return (
+    <div className="mt-6 pt-6 border-t border-slate-200">
+      <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider text-center mb-3">
+        One-Click Demo Credentials
+      </p>
+      <div className="grid grid-cols-2 gap-2 text-xs">
+        <button
+          type="button"
+          onClick={() => onFill("owner@vendre.com", "Vendre2025!")}
+          className="p-2 rounded-lg border border-slate-200 hover:border-blue-500 hover:bg-blue-50 text-left transition-colors"
+        >
+          <div className="font-bold text-slate-800">Owner</div>
+          <div className="text-[10px] text-slate-500">owner@vendre.com</div>
+        </button>
+        <button
+          type="button"
+          onClick={() => onFill("admin@vendre.com", "Vendre2025!")}
+          className="p-2 rounded-lg border border-slate-200 hover:border-blue-500 hover:bg-blue-50 text-left transition-colors"
+        >
+          <div className="font-bold text-slate-800">Admin</div>
+          <div className="text-[10px] text-slate-500">admin@vendre.com</div>
+        </button>
+        <button
+          type="button"
+          onClick={() => onFill("sales@vendre.com", "Vendre2025!")}
+          className="p-2 rounded-lg border border-slate-200 hover:border-blue-500 hover:bg-blue-50 text-left transition-colors"
+        >
+          <div className="font-bold text-slate-800">Sales Rep</div>
+          <div className="text-[10px] text-slate-500">sales@vendre.com</div>
+        </button>
+        <button
+          type="button"
+          onClick={() => onFill("agency.lead@vendre.com", "Vendre2025!")}
+          className="p-2 rounded-lg border border-slate-200 hover:border-blue-500 hover:bg-blue-50 text-left transition-colors"
+        >
+          <div className="font-bold text-slate-800">Agency Lead</div>
+          <div className="text-[10px] text-slate-500">agency.lead@...</div>
+        </button>
+      </div>
+      <div className="mt-3 text-center">
+        <span className="text-[10px] text-slate-400">
+          Default password: <code className="bg-slate-100 px-1 py-0.5 rounded">Vendre2025!</code>
+        </span>
       </div>
     </div>
   );

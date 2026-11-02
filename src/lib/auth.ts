@@ -4,9 +4,49 @@ import bcrypt from "bcryptjs";
 import { prisma } from "./prisma";
 import { Role, User, Workspace, WorkspaceMembership } from "@prisma/client";
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.SESSION_SECRET || "vendre_crm_super_secure_development_secret_key_minimum_32_characters_long_123"
-);
+/**
+ * Returns the validated session secret as a Uint8Array for HMAC JWT signing and verification.
+ *
+ * Security Requirements (SEC-01):
+ * - In production (`NODE_ENV === "production"`), fail closed if `SESSION_SECRET` is missing
+ *   or shorter than 32 characters.
+ * - Never provide or generate a predictable fallback secret.
+ * - Do not silently use a development secret in production.
+ * - Secret values are never printed or leaked in error responses or logs.
+ */
+export function getSessionSecret(): Uint8Array {
+  const secret = process.env.SESSION_SECRET;
+  const isProduction = process.env.NODE_ENV === "production";
+
+  if (!secret) {
+    if (isProduction) {
+      throw new Error(
+        "FATAL: SESSION_SECRET environment variable is missing in production. Application cannot start."
+      );
+    }
+    throw new Error(
+      "SESSION_SECRET environment variable is missing. Set SESSION_SECRET in .env with at least 32 characters."
+    );
+  }
+
+  if (secret.length < 32) {
+    if (isProduction) {
+      throw new Error(
+        "FATAL: SESSION_SECRET is too short in production. Minimum 32 characters required for secure HMAC-SHA256 signing."
+      );
+    }
+    throw new Error(
+      "SESSION_SECRET is too short. Minimum 32 characters required for secure HMAC-SHA256 signing."
+    );
+  }
+
+  return new TextEncoder().encode(secret);
+}
+
+// Fail-closed startup validation if running in production
+if (process.env.NODE_ENV === "production") {
+  getSessionSecret();
+}
 
 export const COOKIE_NAME = process.env.COOKIE_NAME || "vendre_session";
 
@@ -48,16 +88,18 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
 }
 
 export async function createSessionToken(payload: SessionPayload): Promise<string> {
+  const secret = getSessionSecret();
   return new SignJWT({ ...payload })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("7d")
-    .sign(JWT_SECRET);
+    .sign(secret);
 }
 
 export async function verifySessionToken(token: string): Promise<SessionPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, JWT_SECRET);
+    const secret = getSessionSecret();
+    const { payload } = await jwtVerify(token, secret);
     return payload as unknown as SessionPayload;
   } catch {
     return null;

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { prisma } from "../src/lib/prisma";
 import { scanForDuplicates, mergeDuplicateRecords } from "../src/services/duplicate.service";
 import { Role, DuplicateEntityType, DuplicateStatus } from "@prisma/client";
@@ -8,11 +8,16 @@ describe("Duplicate Detection and Transactional Merge", () => {
   let userAdmin: any;
   let orgPrimary: any;
   let orgDuplicate: any;
+  let contactRecord: any;
   let candidate: any;
 
   beforeAll(async () => {
     wsVendre = await prisma.workspace.findUniqueOrThrow({ where: { slug: "vendre-sales" } });
     userAdmin = await prisma.user.findUniqueOrThrow({ where: { email: "admin@vendre.com" } });
+
+    // Clean any previous test artifacts
+    await prisma.contact.deleteMany({ where: { firstName: "Sarah", lastName: "Connor" } });
+    await prisma.organization.deleteMany({ where: { name: { startsWith: "OmniCorp Global" } } });
 
     // Create 2 duplicate organizations
     orgPrimary = await prisma.organization.create({
@@ -34,7 +39,7 @@ describe("Duplicate Detection and Transactional Merge", () => {
     });
 
     // Attach a contact to the duplicate organization
-    await prisma.contact.create({
+    contactRecord = await prisma.contact.create({
       data: {
         workspaceId: wsVendre.id,
         organizationId: orgDuplicate.id,
@@ -58,6 +63,12 @@ describe("Duplicate Detection and Transactional Merge", () => {
     });
   });
 
+  afterAll(async () => {
+    if (candidate) await prisma.duplicateCandidate.deleteMany({ where: { id: candidate.id } });
+    if (contactRecord) await prisma.contact.deleteMany({ where: { id: contactRecord.id } });
+    if (orgPrimary) await prisma.organization.deleteMany({ where: { id: orgPrimary.id } });
+  });
+
   it("Executes transactional merge: re-links dependent contacts to primary and removes duplicate org", async () => {
     const result = await mergeDuplicateRecords({
       workspaceId: wsVendre.id,
@@ -74,8 +85,8 @@ describe("Duplicate Detection and Transactional Merge", () => {
     expect(result.success).toBe(true);
 
     // Verify contact was transferred to primary org
-    const contact = await prisma.contact.findFirst({
-      where: { firstName: "Sarah", lastName: "Connor" },
+    const contact = await prisma.contact.findUnique({
+      where: { id: contactRecord.id },
     });
     expect(contact?.organizationId).toBe(orgPrimary.id);
 
